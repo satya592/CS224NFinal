@@ -1,0 +1,4 @@
+Jupyter Tutorial:
+https://www.datacamp.com/community/tutorials/tutorial-jupyter-notebook
+Git Tutorial:
+https://help.github.com/articles/adding-an-existing-project-to-github-using-the-command-line/
