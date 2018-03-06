@@ -175,6 +175,99 @@ class BasicAttn(object):
 
             return attn_dist, output
 
+class BidafAttn(object):
+
+    def __init__(self, keep_prob, key_vec_size, value_vec_size):
+        self.keep_prob = keep_prob
+        self.key_vec_size = key_vec_size
+        self.value_vec_size = value_vec_size
+        """
+        Inputs:
+          keep_prob: tensor containing a single scalar that is the keep probability (for dropout)
+          key_vec_size: size of the key vectors. int
+          value_vec_size: size of the value vectors. int
+        """
+
+
+    def build_graph(self, values, values_mask, keys):
+        """
+        Keys attend to values.
+        For each key, return an attention distribution and an attention output vector.
+
+        Inputs:
+          values: Tensor shape (batch_size, num_values, value_vec_size).
+          values_mask: Tensor shape (batch_size, num_values).
+            1s where there's real input, 0s where there's padding
+          keys: Tensor shape (batch_size, num_keys, value_vec_size)
+
+        Outputs:
+          attn_dist: Tensor shape (batch_size, num_keys, num_values).
+            For each key, the distribution should sum to 1,
+            and should be 0 in the value locations that correspond to padding.
+          output: Tensor shape (batch_size, num_keys, hidden_size).
+            This is the attention output; the weighted sum of the values
+            (using the attention distribution as weights).
+        """
+
+        with vs.variable_scope("BidafAttn"):
+
+            batch_size =  tf.shape(values)[0]
+
+            #sim_weight = tf.get_variable()
+
+            num_cols = values.shape[1]
+            num_rows = keys.shape[1]
+
+            h = int(values.shape[2]) / 2
+            W_sim = tf.get_variable('w_sim', shape=(num_rows*num_cols, num_rows*num_cols*6*h), initializer=tf.contrib.layers.xavier_initializer())
+
+            val_shape = values.get_shape().as_list()
+            keys_tile = tf.tile(keys, [1, num_cols, 1])
+            value_tile = tf.tile(tf.expand_dims(values, 1), [1, num_rows, 1, 1])
+            value_tile = tf.reshape(value_tile, [-1, num_cols*num_rows, values.shape[2]])
+            multiply = tf.multiply(value_tile, keys_tile)
+
+            rhs = tf.concat([value_tile, keys_tile, multiply], axis=2)
+            rhs_r = tf.reshape(rhs, [-1, num_rows*num_cols*6*h])
+            weighted = tf.matmul(rhs_r, tf.transpose(W_sim))
+            weighted = tf.reshape(weighted, [-1, num_rows*num_cols])
+            S = tf.reshape(weighted, [-1, num_rows, num_cols])
+
+            #apply mask
+            values_mask = tf.expand_dims(values_mask, 1) # shape (batch_size, 1, num_values)
+            exp_mask = (1 - tf.cast(values_mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
+            masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large
+
+            #C2Q Attention
+            print masked_score
+            alpha = tf.nn.softmax(masked_score, 1)
+            print alpha
+            A = tf.matmul(alpha, values)
+            print A
+
+            # Q2C Attention
+            M = tf.reduce_max(masked_score, axis = 2)
+            print M
+            beta = tf.expand_dims(tf.nn.softmax(M, 1), 1)
+            print beta
+            C_p = tf.matmul(beta, keys)
+            print C_p
+
+            # Merge
+            C_p = tf.tile(C_p, [1, num_rows, 1])
+            fourth = tf.multiply(keys, C_p)
+            third = tf.multiply(keys, A)
+            B = tf.concat([keys, A, third, fourth], axis = 2)
+            print B
+
+            # values_t = tf.transpose(values, perm=[0, 2, 1]) # (batch_size, value_vec_size, num_values)
+            # mul = tf.matmul(keys, values_t ) # shape (batch_size, num_keys, num_values)
+            # print mul
+            # key_val_concat = tf.concat([tile_keys, tile_val], 2)
+            # print key_val_concat, tf.shape(key_val_concat)
+            return alpha, B
+
+
 
 def masked_softmax(logits, mask, dim):
     """
@@ -197,5 +290,6 @@ def masked_softmax(logits, mask, dim):
     """
     exp_mask = (1 - tf.cast(mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
     masked_logits = tf.add(logits, exp_mask) # where there's padding, set logits to -large
+    print masked_logits
     prob_dist = tf.nn.softmax(masked_logits, dim)
     return masked_logits, prob_dist

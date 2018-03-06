@@ -77,6 +77,7 @@ def get_glove(glove_path, glove_dim):
             idx += 1
 
     final_vocab_size = vocab_size + len(_START_VOCAB)
+    #UNCOMMENT WHEN DONE DEBUGGING
     assert len(word2id) == final_vocab_size
     assert len(id2word) == final_vocab_size
     assert idx == final_vocab_size
