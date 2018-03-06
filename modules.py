@@ -229,6 +229,7 @@ class BidafAttn(object):
 
             rhs = tf.concat([value_tile, keys_tile, multiply], axis=2)
             rhs_r = tf.reshape(rhs, [-1, num_rows*num_cols*6*h])
+            print rhs_r
             weighted = tf.matmul(rhs_r, tf.transpose(W_sim))
             weighted = tf.reshape(weighted, [-1, num_rows*num_cols])
             S = tf.reshape(weighted, [-1, num_rows, num_cols])
