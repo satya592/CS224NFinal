@@ -222,51 +222,41 @@ class BidafAttn(object):
             c = tf.expand_dims(keys, 2) 
             q = tf.expand_dims(values, 1)
 
-            c_w = tf.contrib.layers.fully_connected(c, num_outputs=1, activation_fn = None)
-            q_w = tf.contrib.layers.fully_connected(q, num_outputs=1, activation_fn = None)
+            c_w = tf.contrib.layers.fully_connected(c, num_outputs=1, activation_fn = None) #[batch_size, num_keys, 1, 1]
+            q_w = tf.contrib.layers.fully_connected(q, num_outputs=1, activation_fn = None) #[batch_size, 1, num_values, 1]
             mul = c * q
-            cq_w = tf.contrib.layers.fully_connected(mul, num_outputs=1, activation_fn = None)
+            cq_w = tf.contrib.layers.fully_connected(mul, num_outputs=1, activation_fn = None) #[batch_size, num_keys, num_values, 1]
+            print c_w, q_w, cq_w
 
-            S = c_w + q_w + cq_w
-
-
-            # val_shape = values.get_shape().as_list()
-            # keys_tile = tf.tile(keys, [1, num_cols, 1])
-            # value_tile = tf.tile(tf.expand_dims(values, 1), [1, num_rows, 1, 1])
-            # value_tile = tf.reshape(value_tile, [-1, num_cols*num_rows, values.shape[2]])
-            # multiply = tf.multiply(value_tile, keys_tile)
-
+            S = c_w + q_w + cq_w #[batch_size, num_keys, num_values, 1]
+            print S
 
             #apply mask
             values_mask = tf.expand_dims(values_mask, 1) # shape (batch_size, 1, num_values)
             exp_mask = (1 - tf.cast(values_mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
             masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large
-            masked_score = S
 
             #C2Q Attention
-            print c, q
-            print masked_score
             alpha = tf.nn.softmax(masked_score, 2)
-            print alpha
-            A = q * alpha
+            A = q * alpha #[batch_size, num_keys, num_values, 2*h]
             print A
 
             # Q2C Attention
             M = tf.reduce_max(masked_score, axis = 2)
-            print M
             beta = tf.expand_dims(tf.nn.softmax(M, 1), 2)
-            print beta
-            C_p = beta * c
-            print C_p
+            C_p = beta * c #[batch_size, num_keys, 1, 2*h]
+            print C_p 
 
             # Merge
-            fourth = c * C_p
-            third = c * A
+            fourth = c * C_p #[batch_size, num_keys, 1, 2*h]
+            print fourth
+            third = c * A #[batch_size, num_keys, num_values, 2*h]
+            print third
             output = c + A + third +fourth
-            print output
+            print output  #[batch_size, num_keys, num_values, 2*h]
 
             output = tf.nn.dropout(output, self.keep_prob)
-            output = tf.reshape(output, [-1, num_rows, num_cols * 2*h])
+            output = tf.reshape(output, [-1, num_rows, num_cols * 2*h]) #[batch_size, num_keys, num_values*2*h]
 
 
             # values_t = tf.transpose(values, perm=[0, 2, 1]) # (batch_size, value_vec_size, num_values)
