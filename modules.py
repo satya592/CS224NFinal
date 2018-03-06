@@ -219,49 +219,54 @@ class BidafAttn(object):
             num_rows = keys.shape[1]
 
             h = int(values.shape[2]) / 2
-            W_sim = tf.get_variable('w_sim', shape=(num_rows*num_cols, num_rows*num_cols*6*h), initializer=tf.contrib.layers.xavier_initializer())
+            c = tf.expand_dims(keys, 2) 
+            q = tf.expand_dims(values, 1)
 
-            val_shape = values.get_shape().as_list()
-            keys_tile = tf.tile(keys, [1, num_cols, 1])
-            value_tile = tf.tile(tf.expand_dims(values, 1), [1, num_rows, 1, 1])
-            value_tile = tf.reshape(value_tile, [-1, num_cols*num_rows, values.shape[2]])
-            multiply = tf.multiply(value_tile, keys_tile)
+            c_w = tf.contrib.layers.fully_connected(c, num_outputs=1, activation_fn = None)
+            q_w = tf.contrib.layers.fully_connected(q, num_outputs=1, activation_fn = None)
+            mul = c * q
+            cq_w = tf.contrib.layers.fully_connected(mul, num_outputs=1, activation_fn = None)
 
-            rhs = tf.concat([value_tile, keys_tile, multiply], axis=2)
-            rhs_r = tf.reshape(rhs, [-1, num_rows*num_cols*6*h])
-            print rhs_r
-            weighted = tf.matmul(rhs_r, tf.transpose(W_sim))
-            weighted = tf.reshape(weighted, [-1, num_rows*num_cols])
-            S = tf.reshape(weighted, [-1, num_rows, num_cols])
+            S = c_w + q_w + cq_w
+
+
+            # val_shape = values.get_shape().as_list()
+            # keys_tile = tf.tile(keys, [1, num_cols, 1])
+            # value_tile = tf.tile(tf.expand_dims(values, 1), [1, num_rows, 1, 1])
+            # value_tile = tf.reshape(value_tile, [-1, num_cols*num_rows, values.shape[2]])
+            # multiply = tf.multiply(value_tile, keys_tile)
+
 
             #apply mask
             values_mask = tf.expand_dims(values_mask, 1) # shape (batch_size, 1, num_values)
-            #exp_mask = (1 - tf.cast(values_mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
-            #masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large
+            exp_mask = (1 - tf.cast(values_mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
+            masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large
             masked_score = S
 
             #C2Q Attention
+            print c, q
             print masked_score
-            alpha = tf.nn.softmax(masked_score, 1)
+            alpha = tf.nn.softmax(masked_score, 2)
             print alpha
-            A = tf.matmul(alpha, values)
+            A = q * alpha
             print A
 
             # Q2C Attention
             M = tf.reduce_max(masked_score, axis = 2)
             print M
-            beta = tf.expand_dims(tf.nn.softmax(M, 1), 1)
+            beta = tf.expand_dims(tf.nn.softmax(M, 1), 2)
             print beta
-            C_p = tf.matmul(beta, keys)
+            C_p = beta * c
             print C_p
 
             # Merge
-            C_p = tf.tile(C_p, [1, num_rows, 1])
-            fourth = tf.multiply(keys, C_p)
-            third = tf.multiply(keys, A)
-            B = tf.concat([keys, A, third, fourth], axis = 2)
-            output = tf.nn.dropout(B, self.keep_prob)
+            fourth = c * C_p
+            third = c * A
+            output = c + A + third +fourth
             print output
+
+            output = tf.nn.dropout(output, self.keep_prob)
+            output = tf.reshape(output, [-1, num_rows, num_cols * 2*h])
 
 
             # values_t = tf.transpose(values, perm=[0, 2, 1]) # (batch_size, value_vec_size, num_values)
@@ -269,7 +274,7 @@ class BidafAttn(object):
             # print mul
             # key_val_concat = tf.concat([tile_keys, tile_val], 2)
             # print key_val_concat, tf.shape(key_val_concat)
-            return alpha, B
+            return alpha, output
 
 
 
