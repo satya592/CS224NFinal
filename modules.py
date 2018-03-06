@@ -233,8 +233,11 @@ class BidafAttn(object):
 
             #apply mask
             values_mask = tf.expand_dims(values_mask, 1) # shape (batch_size, 1, num_values)
+            values_mask = tf.expand_dims(values_mask, 3) # shape (batch_size, 1, num_values, 1)
             exp_mask = (1 - tf.cast(values_mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
+            print exp_mask
             masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large
+            print masked_score
 
             #C2Q Attention
             alpha = tf.nn.softmax(masked_score, 2)
