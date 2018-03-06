@@ -235,8 +235,9 @@ class BidafAttn(object):
 
             #apply mask
             values_mask = tf.expand_dims(values_mask, 1) # shape (batch_size, 1, num_values)
-            exp_mask = (1 - tf.cast(values_mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
-            masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large
+            #exp_mask = (1 - tf.cast(values_mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
+            #masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large
+            masked_score = S
 
             #C2Q Attention
             print masked_score
@@ -258,7 +259,9 @@ class BidafAttn(object):
             fourth = tf.multiply(keys, C_p)
             third = tf.multiply(keys, A)
             B = tf.concat([keys, A, third, fourth], axis = 2)
-            print B
+            output = tf.nn.dropout(B, self.keep_prob)
+            print output
+
 
             # values_t = tf.transpose(values, perm=[0, 2, 1]) # (batch_size, value_vec_size, num_values)
             # mul = tf.matmul(keys, values_t ) # shape (batch_size, num_keys, num_values)
