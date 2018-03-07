@@ -226,37 +226,36 @@ class BidafAttn(object):
             q_w = tf.contrib.layers.fully_connected(q, num_outputs=1, activation_fn = None) #[batch_size, 1, num_values, 1]
             mul = c * q
             cq_w = tf.contrib.layers.fully_connected(mul, num_outputs=1, activation_fn = None) #[batch_size, num_keys, num_values, 1]
-            print c_w, q_w, cq_w
 
             S = c_w + q_w + cq_w #[batch_size, num_keys, num_values, 1]
-            print S
 
             #apply mask
             values_mask = tf.expand_dims(values_mask, 1) # shape (batch_size, 1, num_values)
             values_mask = tf.expand_dims(values_mask, 3) # shape (batch_size, 1, num_values, 1)
             exp_mask = (1 - tf.cast(values_mask, 'float')) * (-1e30) # -large where there's padding, 0 elsewhere
-            print exp_mask
-            masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large
-            print masked_score
+            masked_score = tf.add(S, exp_mask) # where there's padding, set logits to -large [batch_size, num_keys, num_values, 1]
 
             #C2Q Attention
-            alpha = tf.nn.softmax(masked_score, 2)
-            A = q * alpha #[batch_size, num_keys, num_values, 2*h]
+            masked_score = tf.reshape(masked_score, [-1, num_rows, num_cols])
+            alpha = tf.nn.softmax(masked_score, 2) #[batch_size, num_keys, num_values, 1]
+            A = tf.matmul(alpha, values) #[batch_size, num_keys, num_values, 2*h]
             print A
 
             # Q2C Attention
-            M = tf.reduce_max(masked_score, axis = 2)
-            beta = tf.expand_dims(tf.nn.softmax(M, 1), 2)
-            C_p = beta * c #[batch_size, num_keys, 1, 2*h]
-            print C_p 
+            M = tf.reduce_max(masked_score, axis = 2) #[batch_size, num_keys, 1]
+            print M
+            beta = tf.expand_dims(tf.nn.softmax(M, 1), 1) #[batch_size, num_keys, 1, 1]
+            print beta
+            C_p = tf.matmul(beta, keys) #[batch_size, num_keys, 1, 2*h]
+            print C_p
 
             # Merge
-            fourth = c * C_p #[batch_size, num_keys, 1, 2*h]
+            fourth = keys * C_p #[batch_size, num_keys, 1, 2*h]
             print fourth
-            third = c * A #[batch_size, num_keys, num_values, 2*h]
+            third = keys * A #[batch_size, num_keys, num_values, 2*h]
             print third
-            output = c + A + third +fourth
-            print output  #[batch_size, num_keys, num_values, 2*h]
+            output = tf.concat([keys, A, third, fourth], 2)  #[batch_size, num_keys, num_values, 2*h]
+            print output
 
             output = tf.nn.dropout(output, self.keep_prob)
             output = tf.reshape(output, [-1, num_rows, num_cols * 2*h]) #[batch_size, num_keys, num_values*2*h]
