@@ -258,8 +258,6 @@ class BidafAttn(object):
             print output
 
             output = tf.nn.dropout(output, self.keep_prob)
-            output = tf.reshape(output, [-1, num_rows, num_cols * 2*h]) #[batch_size, num_keys, num_values*2*h]
-
 
             # values_t = tf.transpose(values, perm=[0, 2, 1]) # (batch_size, value_vec_size, num_values)
             # mul = tf.matmul(keys, values_t ) # shape (batch_size, num_keys, num_values)
