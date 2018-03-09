@@ -236,12 +236,12 @@ class BidafAttn(object):
             masked_score = tf.add(S, values_mask) # where there's padding, set logits to -large [batch_size, num_keys, num_values]
 
             #C2Q Attention
-            alpha = tf.nn.softmax(masked_score, 1) #[batch_size, num_keys, num_values]
+            alpha = tf.nn.softmax(masked_score, 2) #[batch_size, num_keys, num_values]
             A = tf.matmul(alpha, values) #[batch_size, num_keys, 2*h]
 
             # Q2C Attention
             M = tf.reduce_max(masked_score, axis = 2) #[batch_size, num_keys]
-            beta = tf.expand_dims(tf.nn.softmax(M, 1), 1) #[batch_size, 1, num_keys] * [batch_size, num_keys, 2*h]
+            beta = tf.expand_dims(tf.nn.softmax(M, 1), 1) #[batch_size, 1, num_keys]
             C_p = tf.matmul(beta, keys) #[batch_size, 1,  2*h]
 
             # Merge
