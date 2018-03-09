@@ -171,7 +171,7 @@ class BasicAttn(object):
             output = tf.matmul(attn_dist, values) # shape (batch_size, num_keys, value_vec_size)
 
             # Apply dropout
-            output = tf.nn.dropout(output, self.keep_prob)
+            #output = tf.nn.dropout(output, self.keep_prob)
 
             return attn_dist, output
 
